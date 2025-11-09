@@ -35,6 +35,34 @@
    python scripts/check_db.py
    ```
 
+### Ошибка: `DuplicatePreparedStatementError: prepared statement "__asyncpg_stmt_X__" already exists`
+
+Эта ошибка возникает при использовании Supabase Connection Pooler в режиме **Transaction mode**, который не поддерживает prepared statements.
+
+**Решение:**
+
+**ВАЖНО: Используйте Session mode для Connection Pooler!**
+
+1. Перейдите в Supabase Dashboard → Settings → Database
+2. Найдите раздел "Connection string"
+3. Выберите **"Session mode"** (не Transaction mode!)
+4. Скопируйте Connection Pooler URL
+5. Убедитесь, что URL содержит `pooler.supabase.com:6543`
+
+**Если вы используете Transaction mode:**
+
+Если вы вынуждены использовать Transaction mode (не рекомендуется), установите в `.env`:
+```
+TRANSACTION_POOLER=true
+```
+
+Приложение автоматически отключит кеширование prepared statements.
+
+**Техническая информация:**
+- **Session mode** - поддерживает prepared statements, кеширование включено (по умолчанию)
+- **Transaction mode** - НЕ поддерживает prepared statements, нужно отключать кеширование
+- По умолчанию используется Session mode с кешированием для лучшей производительности
+
 ### Ошибка: `nodename nor servname provided, or not known`
 
 Это означает, что приложение не может найти хост базы данных.
