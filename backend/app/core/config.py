@@ -44,6 +44,12 @@ class Settings(BaseSettings):
 
 	# CORS
 	CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
+	
+	# Frontend
+	FRONTEND_URL: str = "http://localhost:3000"
+	
+	# Backend
+	BACKEND_URL: str = "http://localhost:8000"
 
 	# YouTube API
 	YOUTUBE_CLIENT_ID: str = ""

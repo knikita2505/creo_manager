@@ -10,6 +10,7 @@ import aiofiles
 from app.models import SourceAsset, VideoVersion, YouTubeUpload, Integration
 from app.services.video_processor import VideoProcessor
 from app.services.youtube_service import YouTubeService
+from app.services.integration_service import IntegrationService
 from app.core.config import settings
 
 
@@ -27,15 +28,11 @@ class UploadService:
 	) -> dict:
 		"""Обработать видео и загрузить на YouTube"""
 
-		# Получаем YouTube интеграцию пользователя
-		integration_query = select(Integration).where(
-			Integration.user_id == user_id, Integration.kind == "youtube", Integration.is_valid == True
-		)
-		result = await session.execute(integration_query)
-		integration = result.scalar_one_or_none()
-
-		if not integration:
-			raise ValueError("YouTube интеграция не найдена или не активна")
+		# Получаем расшифрованные credentials для YouTube
+		credentials = await IntegrationService.get_decrypted_auth_data(session, user_id, "youtube")
+		
+		if not credentials:
+			raise ValueError("YouTube интеграция не найдена или не активна. Пожалуйста, подключите YouTube в настройках интеграций.")
 
 		# Создаём директории для хранения
 		storage_base = Path(settings.STORAGE_PATH)
@@ -149,7 +146,7 @@ class UploadService:
 					video_id, youtube_url = await YouTubeService.upload_video(
 						final_path,
 						f"{original_filename} ({orientation})",
-						integration.auth_data,
+						credentials,
 						"unlisted",
 					)
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Upload, FileVideo, X } from 'lucide-react'
+import { Upload, FileVideo, X, Play } from 'lucide-react'
 import { uploadVideo } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -12,24 +12,41 @@ interface UploadZoneProps {
 export function UploadZone({ onSuccess }: UploadZoneProps) {
 	const [isDragging, setIsDragging] = useState(false)
 	const [isUploading, setIsUploading] = useState(false)
+	const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 	const [generateOrientations, setGenerateOrientations] = useState(false)
 	const [selectedOrientations, setSelectedOrientations] = useState<string[]>([])
 	const [error, setError] = useState<string | null>(null)
 
-	const handleUpload = useCallback(async (files: File[]) => {
+	const handleFileAdd = useCallback((files: File[]) => {
+		const videoFiles = files.filter((file) => file.type.startsWith('video/'))
+		if (videoFiles.length > 0) {
+			setSelectedFiles((prev) => [...prev, ...videoFiles])
+			setError(null)
+		}
+	}, [])
+
+	const handleUpload = useCallback(async () => {
+		if (selectedFiles.length === 0) {
+			setError('Выберите файлы для загрузки')
+			return
+		}
+
 		setIsUploading(true)
 		setError(null)
 
 		try {
 			const orientations = generateOrientations ? selectedOrientations : []
-			await uploadVideo(files, generateOrientations, orientations)
+			await uploadVideo(selectedFiles, generateOrientations, orientations)
+			setSelectedFiles([])
+			setSelectedOrientations([])
+			setGenerateOrientations(false)
 			onSuccess()
 		} catch (err) {
 			setError(err instanceof Error ? err.message : 'Ошибка загрузки')
 		} finally {
 			setIsUploading(false)
 		}
-	}, [generateOrientations, selectedOrientations, onSuccess])
+	}, [selectedFiles, generateOrientations, selectedOrientations, onSuccess])
 
 	const handleDragOver = useCallback((e: React.DragEvent) => {
 		e.preventDefault()
@@ -42,30 +59,31 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
 	}, [])
 
 	const handleDrop = useCallback(
-		async (e: React.DragEvent) => {
+		(e: React.DragEvent) => {
 			e.preventDefault()
 			setIsDragging(false)
 
-			const files = Array.from(e.dataTransfer.files).filter((file) =>
-				file.type.startsWith('video/')
-			)
-
-			if (files.length > 0) {
-				await handleUpload(files)
-			}
+			const files = Array.from(e.dataTransfer.files)
+			handleFileAdd(files)
 		},
-		[handleUpload]
+		[handleFileAdd]
 	)
 
 	const handleFileSelect = useCallback(
-		async (e: React.ChangeEvent<HTMLInputElement>) => {
+		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const files = e.target.files
 			if (files && files.length > 0) {
-				await handleUpload(Array.from(files))
+				handleFileAdd(Array.from(files))
 			}
+			// Сбрасываем input, чтобы можно было выбрать тот же файл снова
+			e.target.value = ''
 		},
-		[handleUpload]
+		[handleFileAdd]
 	)
+
+	const removeFile = useCallback((index: number) => {
+		setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
+	}, [])
 
 	const toggleOrientation = (orientation: string) => {
 		setSelectedOrientations((prev) =>
@@ -109,6 +127,42 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
 				</label>
 			</div>
 
+			{selectedFiles.length > 0 && (
+				<div className="mt-4 space-y-2">
+					<p className="text-sm font-medium text-gray-700">
+						Выбранные файлы ({selectedFiles.length}):
+					</p>
+					<div className="space-y-2">
+						{selectedFiles.map((file, index) => (
+							<div
+								key={index}
+								className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+							>
+								<div className="flex items-center space-x-3 flex-1 min-w-0">
+									<FileVideo className="h-5 w-5 text-gray-400 flex-shrink-0" />
+									<div className="flex-1 min-w-0">
+										<p className="text-sm font-medium text-gray-900 truncate">
+											{file.name}
+										</p>
+										<p className="text-xs text-gray-500">
+											{(file.size / 1024 / 1024).toFixed(2)} MB
+										</p>
+									</div>
+								</div>
+								<button
+									type="button"
+									onClick={() => removeFile(index)}
+									disabled={isUploading}
+									className="ml-2 p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+								>
+									<X className="h-5 w-5" />
+								</button>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
 			<div className="mt-4 space-y-4">
 				<label className="flex items-center space-x-2 cursor-pointer">
 					<input
@@ -150,11 +204,29 @@ export function UploadZone({ onSuccess }: UploadZoneProps) {
 					</div>
 				)}
 
-				{isUploading && (
-					<div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
-						<div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-						<span>Загрузка и обработка...</span>
-					</div>
+				{selectedFiles.length > 0 && (
+					<button
+						type="button"
+						onClick={handleUpload}
+						disabled={isUploading}
+						className={cn(
+							'w-full inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+							'bg-primary text-white hover:bg-primary/90',
+							'disabled:opacity-50 disabled:cursor-not-allowed'
+						)}
+					>
+						{isUploading ? (
+							<>
+								<div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+								Загрузка и обработка...
+							</>
+						) : (
+							<>
+								<Play className="h-4 w-4 mr-2" />
+								Загрузить ({selectedFiles.length} файл{selectedFiles.length > 1 ? 'ов' : ''})
+							</>
+						)}
+					</button>
 				)}
 			</div>
 		</div>

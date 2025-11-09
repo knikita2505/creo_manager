@@ -19,4 +19,5 @@ mutagen==1.47.0
 pillow==10.1.0
 httpx==0.25.1
 aiofiles==23.2.1
+cryptography==41.0.7
 
